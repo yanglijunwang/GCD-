@@ -32,7 +32,17 @@
 //    [self test5];
 //    [self test6];
 //    [self test7];
-    [self test8];
+//    [self test8];
+//    [self test9];
+//    [self test10];
+//    [self test11];
+//    [self test12];
+//    [self test13];
+//    [self test14];
+//    [self test15];
+//    [self test16];
+//    [self test17];
+    [self test18];
 }
 //串行队列 异步任务
 -(void)dispatch_chuan{
@@ -264,7 +274,199 @@
     
 //    都是先有序的执行完同步任务，再无序的执行异步任务。没有交叉执行完的想象，原因在于先添加的同步任务，没添加一个同步任务会堵塞主线程，等待同步任务执行完毕，所以会依次在主线程执行同步任务，for循环结束后，此时并行队列里为空，之后再往并行队列中添加了10个异步任务，此时没有堵塞主线程，主线程一直往下执行打印end2—，此时开启多个子线程来执行执行异步任务，所以执行完的顺序是未知的。
 }
+//开异步线程-执行异步任务-回主线程
+- (void)test9{
+    /*
+     优先级从上到下
+     #define DISPATCH_QUEUE_PRIORITY_HIGH 2
+     #define DISPATCH_QUEUE_PRIORITY_DEFAULT 0
+     #define DISPATCH_QUEUE_PRIORITY_LOW (-2)
+     #define DISPATCH_QUEUE_PRIORITY_BACKGROUND
+     */
+    //最常见的方式下载好图片回到主线程刷新UI
+    dispatch_async(dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_DEFAULT, 0), ^{
+        NSLog(@"async------%@",[NSThread currentThread]);
+        dispatch_async(dispatch_get_main_queue(), ^{
+            NSLog(@"main-async----------%@",[NSThread currentThread]);
+        });
+    });
+}
+//线程中的优先级
+-(void)test10{
+    //调整自定义的线程优先级
+    dispatch_queue_t serialDiapatchQueue=dispatch_queue_create("com.test.queue", NULL);
+    dispatch_queue_t dispatchgetglobalqueue=dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_LOW, 0);
+//    dispatch_set_target_queue(dispatchA, dispatchB);
+//    那么dispatchA上还未运行的block会在dispatchB上运行。这时如果暂停dispatchA运行：
+    dispatch_set_target_queue(serialDiapatchQueue, dispatchgetglobalqueue);
+    dispatch_async(serialDiapatchQueue, ^{
+        NSLog(@"我优先级低，先让让");
+    });
+    dispatch_async(dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_DEFAULT, 0), ^{
+        NSLog(@"我优先级高,我先block");
+    });
+    
+}
+//线程的延迟
+-(void)test11{
+    NSLog(@"我要睡2秒");
+    double delayInSeconds = 2.0;
+    dispatch_time_t popTime = dispatch_time(DISPATCH_TIME_NOW, (int64_t)(delayInSeconds * NSEC_PER_SEC));
+    dispatch_after(popTime, dispatch_get_main_queue(), ^(void){
+        NSLog(@"睡醒了");
+    });
+    
+}
+//
+-(void)test12{
+    dispatch_queue_t queue=dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_DEFAULT, 0);//队列组
+    dispatch_group_t group=dispatch_group_create();//
+    dispatch_group_async(group, queue, ^{NSLog(@"0");});
+    dispatch_group_async(group, queue, ^{NSLog(@"1");});
+    dispatch_group_async(group, queue, ^{NSLog(@"2");});
+    dispatch_group_notify(group, dispatch_get_main_queue(), ^{NSLog(@"down");});
+    
+}
+//
+-(void)test13{
+    dispatch_queue_t que =dispatch_queue_create("queue", DISPATCH_QUEUE_CONCURRENT);
+    dispatch_async(que, ^{NSLog(@"0");});
+    dispatch_async(que, ^{NSLog(@"1");});
+    dispatch_async(que, ^{NSLog(@"2");});
+    dispatch_async(que, ^{NSLog(@"3");});
+    dispatch_barrier_async(que, ^{NSLog(@"我是一个栅栏");});
+    dispatch_async(que, ^{NSLog(@"5");});
+    dispatch_async(que, ^{NSLog(@"6");});
+    dispatch_async(que, ^{NSLog(@"7");});
+    dispatch_async(que, ^{NSLog(@"8");});
 
+}
+//
+-(void)test14{
+    NSArray *array=[[NSArray alloc]initWithObjects:@"0",@"1",@"2",@"3",@"4",@"5",@"6", nil];
+    dispatch_queue_t queue=dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_DEFAULT, 0);
+    dispatch_async(queue, ^{
+        dispatch_apply([array count], queue, ^(size_t index) {
+            NSLog(@"%zu=%@",index,[array objectAtIndex:index]);
+        });
+    });
+    NSLog(@"主线程");
+}
+
+-(void)test15{
+    dispatch_queue_t queue =dispatch_queue_create("queue", DISPATCH_QUEUE_CONCURRENT);
+    dispatch_async(queue, ^{
+        for (int i=0; i<100; i++)
+        {
+            NSLog(@"%i",i);
+            if (i==50)
+            {
+                NSLog(@"----------------我要停下来歇会-------------------");
+                dispatch_suspend(queue);
+                sleep(5);
+                dispatch_async(dispatch_get_main_queue(), ^{
+                    dispatch_resume(queue);
+                });
+            }
+        }
+    });
+
+}
+//
+-(void)test16{
+    dispatch_semaphore_t semaphore = dispatch_semaphore_create(10);//为了让一次输出10个，初始信号量为10
+    dispatch_queue_t queue = dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_DEFAULT, 0);
+    for (int i = 0; i <100; i++)
+    {
+        dispatch_semaphore_wait(semaphore, DISPATCH_TIME_FOREVER);//每进来1次，信号量-1;进来10次后就一直hold住，直到信号量大于0；
+        dispatch_async(queue, ^{
+            NSLog(@"%i",i);
+            sleep(2);
+            dispatch_semaphore_signal(semaphore);//由于这里只是log,所以处理速度非常快，我就模拟2秒后信号量+1;
+        });
+    }
+
+}
+
+-(void)test17{
+    dispatch_queue_t myQueue = dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_DEFAULT, 0);
+    
+    //在main_queue中异步将任务放到myQueue
+    //放入myQueue的顺序是：任务一，任务二，任务三
+    //在myQueue中取出的顺序是FIFO的原则：任务一，任务二，任务三
+    //取出的任务放到线程里执行，因为这是一个并行的队列，所以任务可以同时运行
+    
+    //执行的结果
+    //执行的结果可以是 1 2 3 的随机组合
+    
+    //任务一：
+    dispatch_async(myQueue, ^{
+        
+        NSLog(@"~~~~~~~~~1");
+        
+    });
+    
+    //任务二：
+    dispatch_async(myQueue, ^{
+        
+        NSLog(@"~~~~~~~~~2");
+        
+    });
+    
+    //任务三：
+    dispatch_async(myQueue, ^{
+        
+        NSLog(@"~~~~~~~~~3");
+        
+    });
+
+}
+
+-(void)test18{
+    dispatch_group_t group = dispatch_group_create();
+    
+    //注意queue为DISPATCH_QUEUE_CONCURRENT 和 DISPATCH_QUEUE_SERIAL时当前的线程
+    
+    dispatch_queue_t queue = dispatch_queue_create([@"queue" UTF8String], DISPATCH_QUEUE_SERIAL);
+    
+    //每个dispatch_group_enter对应一个dispatch_group_leave完成group内所有的任务则发送通知
+    
+    //进入group
+    
+    dispatch_group_enter(group);
+    
+    dispatch_async(queue, ^{
+        
+        NSLog(@"task1~~~~~currentThread=%@~~~~~mainThread=%@", [NSThread currentThread], [NSThread mainThread]);
+        
+        //离开group
+        
+        dispatch_group_leave(group);
+        
+    });
+    
+    
+    dispatch_group_enter(group);
+    
+    dispatch_async(queue, ^{
+        
+        NSLog(@"task2~~~~~currentThread=%@~~~~~mainThread=%@", [NSThread currentThread], [NSThread mainThread]);
+        
+        dispatch_group_leave(group);
+        
+    });
+    
+    dispatch_group_wait(group, DISPATCH_TIME_FOREVER);
+    
+    NSLog(@"任务已经全部完成啦after group wait");
+    
+    dispatch_group_notify(group, queue, ^{
+        
+        NSLog(@"是的确实完成啦allGroupFinish");
+        
+    });
+    
+}
 - (void)didReceiveMemoryWarning {
     [super didReceiveMemoryWarning];
     // Dispose of any resources that can be recreated.
